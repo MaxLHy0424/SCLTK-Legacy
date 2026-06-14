@@ -1,0 +1,254 @@
+# ✨ Intro
+
+<div align="center">
+
+**Student Computer Lab Toolkit - Legacy Edition**\
+**轻松破解电子教室软件，基于 Modern C++**
+
+**已加入 [“机房抗联”](https://clra.woen.pics)**
+
+</div>
+
+> [!CAUTION]
+> 若您看到这段文字，说明项目尚在开发中，请勿克隆或复刻本仓库。
+
+> [!IMPORTANT]
+> SCLTK-Legacy 仅适用于 Microsoft Windows OS。
+
+# 📦 获取
+
+| 大版本          | 最新发行版 | 状态       | 生命周期（UTC+08:00） |
+| --------------- | ---------- | ---------- | --------------------- |
+| SCLTK-Legacy v7 | 暂无       | ✅ 基线开发 | 2026-06-06/..         |
+
+# 📖 使用指南
+
+## 0 开始之前
+
+**使用 SCLTK-Legacy 时建议关闭防病毒软件。若 SCLTK-Legacy 被报为恶意软件，请在防病毒软件中添加排除项。**
+
+**请勿使用 SCLTK-Legacy 扰乱课堂纪律，造成的后果与开发者无关。**
+
+**SCLTK-Legacy 以 [MIT License](./LICENSE.txt) 开源，详细内容请自行阅读。**
+
+## 1 启动
+
+SCLTK-Legacy 的发行版文件名为 `SCLTK-Legacy.exe`。SCLTK-Legacy 支持大部分 Windows OS。对于使用现代版本的 Windows OS 的用户，推荐使用 [SCLTK](https://github.com/MaxLHy0424/SCLTK)。
+
+## 2 常规操作
+
+- **退出 SCLTK-Legacy**\
+  `< 退出`
+- **查看 SCLTK-Legacy 信息**\
+  `> 关于`
+
+## 3 配置 SCLTK-Legacy
+
+
+- **进入配置编辑页面**\
+  `> 配置`
+
+> [!NOTE]
+> 配置文件 `SCLTK-Legacy.conf` 中以 `#` 开头的行是注释。\
+> 配置文件头部注释为 SCLTK-Legacy 自动生成。
+>
+> 配置解析规则如下：
+> - 跳过注释；
+> - 配置以行为单位解析；
+> - 各个配置分类在配置文件中由不同标签区分，标签的格式为 `[<标签名>]`，`<标签名>` 与中括号之间可以有若干空格；
+> - 如果匹配不到配置分类，则当前读取到的标签到下一个标签的前一行都将被忽略；
+> - 忽略每行前导和末尾的空白字符，包括空格，换页符（转义字符 0x0c `\f`），横向制表符（转义字符 0x09 `\t`），纵向制表符（转义字符 0x0b `\v`）等；
+> - 如果当前行不是标签，则该行将由上一个标签处理。
+
+### 3.0 配置操作
+
+- **暂存配置并返回**\
+  `< 返回`
+- **查看上文所述的配置解析规则**\
+  `> 查看解析规则`
+- **同步已保存的配置和暂存的配置**\
+  `> 同步配置`
+- **使用 Windows 记事本打开配置文件**\
+  `> 打开配置文件`
+
+### 3.1 破解与恢复
+
+破解/恢复电子教室软件相关选项。位于 `[ 选项 ]` 下。
+
+- **映像劫持**\
+  破解时劫持电子教室软件的进程，恢复时撤销劫持。
+- **挂起进程**\
+  破解时挂起电子教室软件的大部分进程。
+
+### 3.2 窗口显示
+
+SCLTK-Legacy 窗口相关选项。位于 `[ 选项 ]` 下。
+
+- **置顶窗口**\
+  每 50ms 强制显示窗口并设为置顶。
+- **随机标题**\
+  运行时动态生成窗口标题，可在一定程度上绕过部分电子教室软件的封杀。
+
+### 3.3 自定义规则
+
+执行自定义规则破解/恢复时使用的规则。
+
+配置文件中标签 `[custom_rules]` 到下一个标签的部分。
+
+一项自定义规则遵循以下格式：
+
+```
+<flag>: <item>
+```
+
+`<flag>` 有以下选项（区分大小写）：
+- `proc`：Windows 进程名称。
+- `serv`：Windows 服务的服务名称（**不是 “显示名称”**）。
+- `crack_helper`：破解时执行的程序的命令行。
+- `restore_helper`：恢复时执行的程序的命令行。
+
+`<flag>` 后的冒号与 `<item>` 之间可以有若干个空白字符。
+
+`<item>` 的类型由 `<flag>` 决定。
+
+如果 `<item>` 为空，该项规则将会被忽略。
+
+如果自定义规则不符合格式，则会被忽略。
+
+> [!NOTE]
+> 可在 “配置” 页面下的 “自定义规则” 中，点击 `> 查看帮助信息` 阅读上述信息的简略版本。
+
+> [!WARNING]
+> SCLTK-Legacy 不对自定义规则的正确性进行检测，一些规则可能导致意想不到的错误。在修改自定义规则时，请仔细检查。
+
+示例:
+```ini
+[custom_rules]
+exec: abc_frontend.exe
+exec: abc_backend.com
+serv: abc_connect
+serv: abc_proc_defender
+crack_helper: "abc helper.exe" crack
+restore_helper: "abc helper.exe" restore
+```
+
+## 4 工具箱
+
+- **返回上一级页面**\
+`< 返回`
+
+**快捷工具：**
+
+- **在 SCLTK-Legacy 窗口内直接启动命令提示符（可通过输入 `exit` 退出）**\
+`> 启动命令提示符`
+- **一键重启资源管理器**\
+`> 重启资源管理器`
+- **直接注销当前用户账户**\
+`> 注销当前用户账户`
+- **恢复部分被恶意篡改的操作系统设置**\
+`> 恢复操作系统设置`
+- **通过修改注册表来恢复 USB 存储设备访问**\
+`> 恢复 USB 存储设备访问`
+- **重置防火墙规则，重置 Hosts，重置网络代理，刷新 DNS 缓存，重启网络适配器**\
+`> 修复网络访问`
+- **删除 “机房管理助手” 的密码、配置、自启动项**\
+`> 重置 "机房管理助手" 配置`
+- **重置 Google Chrome、Microsoft Edge、Mozilla Firefox 的管理策略**\
+`> 重置 Chrome & Edge & Firefox 管理策略`
+
+## 5 破解/恢复
+
+- **破解电子教室软件**\
+  `[ 破解 (点击切换) ]`
+- **恢复电子教室软件**\
+  `[ 恢复 (点击切换) ]`
+
+根据提示点击对应控件即可切换破解/恢复。
+
+每个电子教室软件有独立的破解/恢复选项，可根据需求执行。可以通过点击 `> 全部执行` 一次性执行所有内建规则和自定义规则。
+
+点击 `> * 自定义 *` 将执行自定义规则，配置自定义规则请参阅 [3.3 自定义规则](#33-自定义规则)。
+
+# ❓ 常见问题
+
+## 自定义规则乱码
+
+请尝试将配置文件 `SCLTK-Legacy.conf` 使用 UTF-8 编码重新保存后重新启动 SCLTK。
+
+## 有时 SCLTK-Legacy 窗口内的项目无法点击
+
+通常，这是由于电子教室软件置顶窗口和 SCLTK-Legacy 发生冲突导致的。这时，可以尝试按下 Win + D 返回桌面，再次尝试点击。
+
+## 破解后一些软件运行时报错 “找不到文件”
+
+在不影响软件正常运行的情况下，可以尝试修改可执行文件名称。另外，打开注册表编辑器，在 `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options` 和 `HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\Windows NT\CurrentVersion\Image File Execution Options` 下找到和要运行的软件的文件名称相同的项，删除即可。
+
+## SCLTK-Legacy 使用内建规则破解不起作用
+
+请尝试使用最新版本的 SCLTK-Legacy 进行破解，如果仍不起作用，可能是因为内建规则已失效。此时，可使用自定义规则临时解决。如果条件允许，请且尽快上报。
+
+## SCLTK-Legacy 无法终止某些进程
+
+由于成本（驱动程序的认证费用不菲）及安全原因，SCLTK 只使用了用户态 Windows API，对于受驱动程序保护的进程可能无法终止。可以通过 ARK（Anti-Rootkit）工具来终止这些进程。推荐的 ARK 工具有 [OpenArk](http://openark.blackint3.com:88)、[KSwordARK](https://github.com/WangWei-CM/KSword)、[StarlightGUI](https://github.com/OpenStarlight/StarlightGUI)。
+
+# 🛠️ 二次开发
+
+首先，请确保您已经安装了 [msys2](https://www.msys2.org)，并在 [msys2](https://www.msys2.org) 已安装软件包 `make` 和 `git`，[msys2](https://www.msys2.org) 的 `ucrt64`、`mingw32`、`msys` 环境应当添加到环境变量中。
+
+然后，使用 git 克隆本仓库到本地。
+
+接下来，在仓库本地目录下打开终端（不是 [msys2](https://www.msys2.org) 的），执行：
+
+```pwsh
+.\make.ps1 -target toolchain
+```
+
+脚本将会自动安装工具链和依赖库。
+
+> [!NOTE]
+> 即便您已经安装了 SCLTK-Legacy 所需的工具链和依赖库，也务必使用上面的命令，因为 SCLTK-Legacy 的开发总是使用最新的工具链和依赖库。
+
+构建可使用：
+
+```pwsh
+.\make.ps1 -target build
+```
+
+```pwsh
+.\make.ps1 -target debug
+```
+
+```pwsh
+.\make.ps1 -target release
+```
+
+更新工具链，可使用：
+
+```pwsh
+.\make.ps1 -target toolchain
+```
+
+构建并打包 `build/release` 下的可执行文件和 `LICENSE.txt` 并签名，可使用：
+
+```pwsh
+.\make.ps1 -target pack_and_sign -gpg_key=<key-id>
+```
+
+其中，`<key-id>` 为签名所需的 GnuPG 密钥 ID。签名时所使用的 `gpg.exe` 为 `where.exe gpg.exe` 第一行的输出。
+
+> [!NOTE]
+> 发布时，推荐使用如下命令：
+> ```pwsh
+> .\make.ps1 -target clean && .\make.ps1 -target pack_and_sign -gpg_key=<key-id>
+> ```
+
+> [!WARNING]
+> 请勿绕过 `.\make.ps1` 执行构建。
+
+> [!WARNING]
+> SCLTK-Legacy 仓库下所有源代码文件均以 UTF-8 编码保存，如果使用其他文本编码保存源代码文件，可能导致非 ASCII 字符变成乱码。
+
+# ❤️ 鸣谢
+
+- [fengliteam](https://github.com/fengliteam) 提供大量改进建议。
+- [lzh173](https://github.com/lzh173) 提供 “机房管理助手” 逆向工程后的部分代码。

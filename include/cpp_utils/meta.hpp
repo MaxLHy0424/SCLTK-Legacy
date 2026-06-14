@@ -1,0 +1,607 @@
+#pragma once
+#include <concepts>
+#include <functional>
+#include <iterator>
+#include <tuple>
+#include <type_traits>
+#include <utility>
+namespace cpp_utils
+{
+    template < std::regular_invocable auto Func >
+        requires requires {
+            { Func().begin() } -> std::forward_iterator;
+            { Func().size() } -> std::convertible_to< std::size_t >;
+            { *Func().begin() } -> std::convertible_to< typename decltype( Func() )::value_type >;
+        }
+    [[nodiscard]] inline consteval auto invoke_to_array() noexcept
+    {
+        using value_type = typename decltype( Func() )::value_type;
+        constexpr auto len{ Func().size() };
+        auto temp{ Func() };
+        return [ & ]< std::size_t... Is >( const std::index_sequence< Is... > )
+        {
+            return std::array< value_type, len >{ *std::next( temp.begin(), Is )... };
+        }( std::make_index_sequence< len >{} );
+    }
+    template < typename... Fs >
+    struct overloads final : public Fs...
+    {
+        using Fs::operator()...;
+    };
+    template < typename... Fs >
+    overloads( Fs... ) -> overloads< Fs... >;
+    template < bool Expr >
+    concept as_concept = Expr;
+    struct error_type final
+    {
+        auto operator=( const error_type& ) -> error_type&     = delete;
+        auto operator=( error_type&& ) noexcept -> error_type& = delete;
+        error_type()                                           = delete;
+        error_type( const error_type& )                        = delete;
+        error_type( error_type&& ) noexcept                    = delete;
+        ~error_type() noexcept                                 = delete;
+    };
+    template < typename T >
+    concept common_type = !std::same_as< std::decay_t< T >, error_type >;
+    template < typename T >
+    class type_identity final
+    {
+      public:
+        using type = T;
+        template < typename U >
+        consteval auto operator==( const type_identity< U > ) const noexcept
+        {
+            return std::is_same_v< T, U >;
+        }
+        template < typename U >
+        consteval auto operator!=( const type_identity< U > ) const noexcept
+        {
+            return !std::is_same_v< T, U >;
+        }
+        template < template < typename > typename Pred >
+            requires requires {
+                { Pred< T >::value } -> std::convertible_to< bool >;
+            }
+        static inline constexpr auto test{ Pred< T >::value };
+        template < template < typename > typename F >
+            requires requires { typename F< T >::type; }
+        using transform = type_identity< typename F< T >::type >;
+        template < template < typename > typename Pred, template < typename > typename F >
+            requires requires {
+                { Pred< T >::value } -> std::convertible_to< bool >;
+                typename F< T >::type;
+            }
+        using transform_if = type_identity< std::conditional_t< Pred< T >::value, typename F< T >::type, T > >;
+    };
+    template < typename T >
+    using type_identity_t = typename type_identity< T >::type;
+    template < auto V >
+    struct value_identity final
+    {
+        using type = decltype( V );
+        static inline constexpr auto value{ V };
+        constexpr auto operator<=>( const value_identity< V >& ) const noexcept        = default;
+        constexpr auto operator==( const value_identity< V >& ) const noexcept -> bool = default;
+    };
+    template < auto V >
+    static inline constexpr auto value_identity_v{ value_identity< V >::value };
+    template < template < typename > typename Pred >
+    struct negate_pred
+    {
+        template < typename T >
+        using predicate = std::bool_constant< !Pred< T >::value >;
+    };
+    template < common_type... Ts >
+    class type_list final
+    {
+      private:
+        static inline constexpr auto size_{ sizeof...( Ts ) };
+        static inline constexpr auto empty_{ size_ == 0uz };
+        template < typename... Us >
+        static consteval auto as_type_list_( std::tuple< Us... > ) noexcept -> type_list< Us... >;
+        template < std::size_t I, std::size_t... Is >
+        static consteval auto index_sequence_( const std::index_sequence< Is... > ) noexcept
+          -> std::index_sequence< ( I + Is )... >;
+        template < std::size_t... Is >
+        static consteval auto select_( const std::index_sequence< Is... > ) noexcept
+          -> type_list< std::tuple_element_t< Is, std::tuple< Ts... > >... >;
+        template < std::size_t... Is >
+        static consteval auto reverse_index_sequence_( const std::index_sequence< Is... > ) noexcept
+          -> std::index_sequence< ( sizeof...( Is ) - 1 - Is )... >;
+        template < typename U >
+        struct is_same_type_ final
+        {
+            template < typename T >
+            using predicate = std::is_same< T, U >;
+        };
+        template < common_type... Args >
+        struct starts_with_impl_ final
+        {
+            template < common_type... Us >
+            static consteval auto test( const type_list< Us... > ) noexcept -> std::bool_constant< false >;
+            template < common_type... Us >
+            static consteval auto test( const type_list< Args..., Us... > ) noexcept -> std::bool_constant< true >;
+            static inline constexpr auto value{ decltype( test( type_list< Ts... >{} ) )::value };
+        };
+        template < common_type... Args >
+        struct ends_with_impl_ final
+        {
+            template < common_type... Us >
+            static consteval auto test( const type_list< Us... > ) noexcept -> std::bool_constant< false >;
+            template < common_type... Us >
+            static consteval auto test( const type_list< Us..., Args... > ) noexcept -> std::bool_constant< true >;
+            static inline constexpr auto value{ decltype( test( type_list< Ts... >{} ) )::value };
+        };
+        template < template < typename > typename Pred, std::size_t I >
+        static consteval auto find_first_if_impl_() noexcept
+        {
+            if constexpr ( I >= size_ ) {
+                return size_;
+            } else {
+                if constexpr ( Pred< std::tuple_element_t< I, std::tuple< Ts... > > >::value ) {
+                    return I;
+                } else {
+                    return find_first_if_impl_< Pred, I + 1 >();
+                }
+            }
+        }
+        template < template < typename > typename Pred, std::size_t I >
+        static consteval auto find_last_if_impl_() noexcept
+        {
+            if constexpr ( Pred< std::tuple_element_t< I, std::tuple< Ts... > > >::value ) {
+                return I;
+            } else {
+                if constexpr ( I == 0 ) {
+                    return size_;
+                } else {
+                    return find_last_if_impl_< Pred, I - 1 >();
+                }
+            }
+        }
+        template < std::size_t, bool = empty_ >
+        struct at_impl_ final
+        {
+            using type = error_type;
+        };
+        template < std::size_t I >
+            requires as_concept< ( I < size_ ) >
+        struct at_impl_< I, false > final
+        {
+            using type = std::tuple_element_t< I, std::tuple< Ts... > >;
+        };
+        template < std::size_t I >
+        struct at_impl_< I, true > final
+        {
+            using type = error_type;
+        };
+        template < std::size_t = 0uz, bool = empty_ >
+        struct front_impl_;
+        template < std::size_t _ >
+        struct front_impl_< _, false > final
+        {
+            using type = typename at_impl_< 0 >::type;
+        };
+        template < std::size_t _ >
+        struct front_impl_< _, true > final
+        {
+            using type = error_type;
+        };
+        template < std::size_t = 0uz, bool = empty_ >
+        struct back_impl_;
+        template < std::size_t _ >
+        struct back_impl_< _, false > final
+        {
+            using type = typename at_impl_< size_ - 1 >::type;
+        };
+        template < std::size_t _ >
+        struct back_impl_< _, true > final
+        {
+            using type = error_type;
+        };
+        template < typename... Us >
+        struct add_front_impl_ final
+        {
+            using type = type_list< Us..., Ts... >;
+        };
+        template < typename... Us >
+        struct add_back_impl_ final
+        {
+            using type = type_list< Ts..., Us... >;
+        };
+        template < std::size_t = 0uz, bool = empty_ >
+        struct remove_front_impl_;
+        template < std::size_t _ >
+        struct remove_front_impl_< _, false > final
+        {
+            using type = decltype( select_( index_sequence_< 1 >( std::make_index_sequence< size_ - 1 >{} ) ) );
+        };
+        template < std::size_t _ >
+        struct remove_front_impl_< _, true > final
+        {
+            using type = type_list<>;
+        };
+        template < std::size_t = 0uz, bool = empty_ >
+        struct remove_back_impl_;
+        template < std::size_t _ >
+        struct remove_back_impl_< _, false > final
+        {
+            using type = decltype( select_( std::make_index_sequence< size_ - 1 >{} ) );
+        };
+        template < std::size_t _ >
+        struct remove_back_impl_< _, true > final
+        {
+            using type = type_list<>;
+        };
+        template < std::size_t, std::size_t, bool = empty_ >
+        struct sub_list_impl_;
+        template < std::size_t I, std::size_t N >
+        struct sub_list_impl_< I, N, false > final
+        {
+            using type = decltype( select_(
+              index_sequence_< I >( std::make_index_sequence< ( I + N <= size_ ? I + N : size_ ) - I >{} ) ) );
+        };
+        template < std::size_t I, std::size_t N >
+        struct sub_list_impl_< I, N, true > final
+        {
+            using type = type_list<>;
+        };
+        template < std::size_t = 0uz, bool = empty_ >
+        struct reverse_impl_;
+        template < std::size_t _ >
+        struct reverse_impl_< _, false > final
+        {
+            using type = decltype( select_( reverse_index_sequence_( std::make_index_sequence< size_ >{} ) ) );
+        };
+        template < std::size_t _ >
+        struct reverse_impl_< _, true > final
+        {
+            using type = type_list<>;
+        };
+        template < typename Result, typename Remaining >
+        struct basic_unique_impl_;
+        template < typename... ResultTs >
+        struct basic_unique_impl_< type_list< ResultTs... >, type_list<> > final
+        {
+            using type = type_list< ResultTs... >;
+        };
+        template < typename... ResultTs, typename T, typename... Rest >
+        struct basic_unique_impl_< type_list< ResultTs... >, type_list< T, Rest... > > final
+        {
+            static inline constexpr auto found{ std::disjunction_v< std::is_same< T, ResultTs >... > };
+            using next = std::conditional_t<
+              found, basic_unique_impl_< type_list< ResultTs... >, type_list< Rest... > >,
+              basic_unique_impl_< type_list< ResultTs..., T >, type_list< Rest... > > >;
+            using type = typename next::type;
+        };
+        template < std::size_t _ = 0uz, bool = empty_ >
+        struct unique_impl_;
+        template < std::size_t _ >
+        struct unique_impl_< _, false > final
+        {
+            using type = typename basic_unique_impl_< type_list<>, type_list< Ts... > >::type;
+        };
+        template < std::size_t _ >
+        struct unique_impl_< _, true > final
+        {
+            using type = type_list<>;
+        };
+        template < std::size_t, std::size_t, bool = empty_ >
+        struct swap_impl_;
+        template < std::size_t I1, std::size_t I2 >
+        struct swap_impl_< I1, I2, true > final
+        {
+            using type = error_type;
+        };
+        template < std::size_t I1, std::size_t I2 >
+        struct swap_impl_< I1, I2, false > final
+        {
+            using type_at_i1 = std::tuple_element_t< I1, std::tuple< Ts... > >;
+            using type_at_i2 = std::tuple_element_t< I2, std::tuple< Ts... > >;
+            template < std::size_t I >
+            using get_swapped_type = std::conditional_t<
+              I == I1, type_at_i2, std::conditional_t< I == I2, type_at_i1, std::tuple_element_t< I, std::tuple< Ts... > > > >;
+            template < std::size_t... Is >
+            static consteval auto construct_swapped( const std::index_sequence< Is... > ) -> type_list< get_swapped_type< Is >... >;
+            using type = decltype( construct_swapped( std::make_index_sequence< size_ >{} ) );
+        };
+        template < typename, typename >
+        struct concat_impl_;
+        template < typename... Ts1, typename... Ts2 >
+        struct concat_impl_< type_list< Ts1... >, type_list< Ts2... > > final
+        {
+            using type = type_list< Ts1..., Ts2... >;
+        };
+        template < typename T, typename SortedList, template < typename, typename > typename Comp >
+        struct basic_insert_sorted_impl_;
+        template < typename T, template < typename, typename > typename Comp >
+        struct basic_insert_sorted_impl_< T, type_list<>, Comp > final
+        {
+            using type = type_list< T >;
+        };
+        template < typename T, typename U, typename... Us, template < typename, typename > typename Comp >
+        struct basic_insert_sorted_impl_< T, type_list< U, Us... >, Comp > final
+        {
+            using type = std::conditional_t<
+              Comp< T, U >::value, type_list< T, U, Us... >,
+              typename concat_impl_< type_list< U >, typename basic_insert_sorted_impl_< T, type_list< Us... >, Comp >::type >::type >;
+        };
+        template < typename List, template < typename, typename > typename Comp >
+        struct sort_impl_;
+        template < template < typename, typename > typename Comp >
+        struct sort_impl_< type_list<>, Comp > final
+        {
+            using type = type_list<>;
+        };
+        template < typename T, template < typename, typename > typename Comp >
+        struct sort_impl_< type_list< T >, Comp > final
+        {
+            using type = type_list< T >;
+        };
+        template < typename Head, typename... Rest, template < typename, typename > typename Comp >
+        struct sort_impl_< type_list< Head, Rest... >, Comp > final
+        {
+            using sorted_rest = typename sort_impl_< type_list< Rest... >, Comp >::type;
+            using type        = typename basic_insert_sorted_impl_< Head, sorted_rest, Comp >::type;
+        };
+        template < template < typename... > typename Template >
+        struct apply_impl_ final
+        {
+            using type = Template< Ts... >;
+        };
+        template < template < typename > typename Template >
+        struct apply_each_impl_ final
+        {
+            using type = type_list< Template< Ts >... >;
+        };
+        template < std::size_t Start >
+        struct enumerate_impl_ final
+        {
+            template < std::size_t... Is >
+            static consteval auto helper( const std::index_sequence< Is... > ) noexcept
+              -> type_list< type_list< value_identity< Start + Is >, Ts >... >;
+            using type = decltype( helper( std::index_sequence_for< Ts... >{} ) );
+        };
+        template < template < typename > typename F >
+        struct transform_impl_ final
+        {
+            using type = type_list< typename F< Ts >::type... >;
+        };
+        template < template < typename > typename, bool = empty_ >
+        struct filter_impl_;
+        template < template < typename > typename Pred >
+        struct filter_impl_< Pred, false > final
+        {
+            using type = decltype( as_type_list_(
+              std::tuple_cat( std::conditional_t< Pred< Ts >::value, std::tuple< Ts >, std::tuple<> >{}... ) ) );
+        };
+        template < template < typename > typename Pred >
+        struct filter_impl_< Pred, true > final
+        {
+            using type = type_list<>;
+        };
+        template < template < typename > typename, bool = empty_ >
+        struct remove_if_impl_;
+        template < template < typename > typename Pred >
+        struct remove_if_impl_< Pred, false > final
+        {
+            using type = typename filter_impl_< negate_pred< Pred >::template predicate >::type;
+        };
+        template < template < typename > typename Pred >
+        struct remove_if_impl_< Pred, true > final
+        {
+            using type = type_list<>;
+        };
+      public:
+        static inline constexpr auto size{ size_ };
+        static inline constexpr auto empty{ empty_ };
+        template < typename U >
+        static inline constexpr auto contains{ std::disjunction_v< std::is_same< U, Ts >... > };
+        template < typename U >
+        static inline constexpr auto count{ [] static consteval noexcept
+        {
+            if constexpr ( empty ) {
+                return 0uz;
+            } else {
+                return ( ( std::is_same_v< Ts, U > ? 1uz : 0uz ) + ... );
+            }
+        }() };
+        template < template < typename > typename Pred >
+        static inline constexpr auto count_if{ [] static consteval noexcept
+        {
+            if constexpr ( empty ) {
+                return 0uz;
+            } else {
+                return ( ( Pred< Ts >::value ? 1uz : 0uz ) + ... );
+            }
+        }() };
+        template < template < typename > typename Pred >
+        static inline constexpr auto all_of{ ( Pred< Ts >::value && ... ) };
+        template < template < typename > typename Pred >
+        static inline constexpr auto any_of{ [] static consteval noexcept
+        {
+            if ( empty_ ) {
+                return true;
+            } else {
+                return ( Pred< Ts >::value || ... );
+            }
+        }() };
+        template < common_type... Us >
+        static inline constexpr auto starts_with{ starts_with_impl_< Us... >::value };
+        template < common_type... Us >
+        static inline constexpr auto ends_with{ ends_with_impl_< Us... >::value };
+        template < template < typename > typename Pred >
+        static inline constexpr auto none_of{ ( !Pred< Ts >::value && ... ) };
+        template < template < typename > typename Pred >
+        static inline constexpr auto find_first_if{ [] static consteval noexcept
+        {
+            if constexpr ( empty ) {
+                return size;
+            } else {
+                return find_first_if_impl_< Pred, 0 >();
+            }
+        }() };
+        template < template < typename > typename Pred >
+        static inline constexpr auto find_last_if{ [] static consteval noexcept
+        {
+            if constexpr ( empty ) {
+                return size;
+            } else {
+                return find_last_if_impl_< Pred, size - 1 >();
+            }
+        }() };
+        template < template < typename > typename Pred >
+        static inline constexpr auto find_first_if_not{ find_first_if< negate_pred< Pred >::template predicate > };
+        template < template < typename > typename Pred >
+        static inline constexpr auto find_last_if_not{ find_last_if< negate_pred< Pred >::template predicate > };
+        template < typename U >
+        static inline constexpr auto find_first{ find_first_if< is_same_type_< U >::template predicate > };
+        template < typename U >
+        static inline constexpr auto find_last{ find_last_if< is_same_type_< U >::template predicate > };
+        template < std::size_t I >
+        using at    = typename at_impl_< I >::type;
+        using front = typename front_impl_<>::type;
+        using back  = typename back_impl_<>::type;
+        template < common_type... Us >
+        using add_front = typename add_front_impl_< Us... >::type;
+        template < common_type... Us >
+        using add_back     = typename add_back_impl_< Us... >::type;
+        using remove_front = typename remove_front_impl_<>::type;
+        using remove_back  = typename remove_back_impl_<>::type;
+        template < std::size_t I, std::size_t N >
+        using sub_list = typename sub_list_impl_< I, N >::type;
+        template < std::size_t N >
+        using take = sub_list< 0, N >;
+        template < std::size_t N >
+        using drop = sub_list< N, size - N >;
+        template < std::size_t I1, std::size_t I2 >
+        using swap    = typename swap_impl_< I1, I2 >::type;
+        using reverse = typename reverse_impl_<>::type;
+        using unique  = typename unique_impl_<>::type;
+        template < template < common_type, common_type > typename Comp >
+        using sort = typename sort_impl_< type_list< Ts... >, Comp >::type;
+        template < template < typename... > typename Template >
+        using apply = typename apply_impl_< Template >::type;
+        template < template < typename > typename Template >
+        using apply_each = typename apply_each_impl_< Template >::type;
+        template < template < typename > typename F >
+        using transform = typename transform_impl_< F >::type;
+        template < std::size_t Start >
+        using enumerate = typename enumerate_impl_< Start >::type;
+        template < template < typename > typename Pred >
+        using filter = typename filter_impl_< Pred >::type;
+        template < template < typename > typename Pred >
+        using filter_not = typename remove_if_impl_< Pred >::type;
+    };
+    template < typename T >
+    struct is_same_as_type_list final : std::false_type
+    { };
+    template < typename... Ts >
+    struct is_same_as_type_list< type_list< Ts... > > final : std::true_type
+    { };
+    template < typename T >
+    inline constexpr auto is_same_as_type_list_v{ is_same_as_type_list< T >::value };
+    template < typename T >
+    concept same_as_type_list = is_same_as_type_list_v< T >;
+    namespace details_
+    {
+        template < typename... >
+        struct type_list_concat_impl final
+        {
+            using type = error_type;
+        };
+        template <>
+        struct type_list_concat_impl<> final
+        {
+            using type = type_list<>;
+        };
+        template < typename... Ts >
+        struct type_list_concat_impl< type_list< Ts... > > final
+        {
+            using type = type_list< Ts... >;
+        };
+        template < typename... Ts, typename... Us >
+        struct type_list_concat_impl< type_list< Ts... >, type_list< Us... > > final
+        {
+            using type = type_list< Ts..., Us... >;
+        };
+        template < typename... Ts, typename... Us, typename... Ls >
+            requires( sizeof...( Ls ) != 0 )
+        struct type_list_concat_impl< type_list< Ts... >, type_list< Us... >, Ls... > final
+        {
+            using type = typename type_list_concat_impl< type_list< Ts..., Us... >, Ls... >::type;
+        };
+        template < typename List >
+        struct is_in_type_list final
+        {
+            template < typename T >
+            using predicate = std::bool_constant< List::template contains< T > >;
+        };
+        template < typename List >
+        struct is_not_in_type_list final
+        {
+            template < typename T >
+            using predicate = std::bool_constant< !List::template contains< T > >;
+        };
+        template < typename List1, typename List2 >
+        struct type_list_intersection_impl final
+        {
+            using type = typename List1::template filter< is_in_type_list< List2 >::template predicate >::unique;
+        };
+        template < typename List1, typename List2 >
+        struct type_list_difference_impl final
+        {
+            using type = typename List1::template filter< is_not_in_type_list< List2 >::template predicate >::unique;
+        };
+        template < typename List1, typename List2 >
+        struct type_list_symmetric_difference_impl final
+        {
+            using type = typename type_list_concat_impl<
+              typename type_list_difference_impl< List1, List2 >::type,
+              typename type_list_difference_impl< List2, List1 >::type >::type::unique;
+        };
+        template < typename T, std::size_t N >
+        struct make_repeated_type_list_impl final
+        {
+            static consteval auto to_identity( const std::size_t ) noexcept -> type_identity< T >;
+            using type = decltype( []< std::size_t... Is >( const std::index_sequence< Is... > ) consteval static noexcept
+            {
+                return type_list< typename decltype( to_identity( Is ) )::type... >{};
+            }( std::make_index_sequence< N >{} ) );
+        };
+    }
+    template < same_as_type_list... Lists >
+    struct type_list_concat final
+    {
+        using type = typename details_::type_list_concat_impl< Lists... >::type;
+    };
+    template < same_as_type_list... Lists >
+    using type_list_concat_t = typename type_list_concat< Lists... >::type;
+    template < same_as_type_list List1, same_as_type_list List2 >
+    struct type_list_intersection final
+    {
+        using type = typename details_::type_list_intersection_impl< List1, List2 >::type;
+    };
+    template < same_as_type_list List1, same_as_type_list List2 >
+    using type_list_intersection_t = typename type_list_intersection< List1, List2 >::type;
+    template < same_as_type_list List1, same_as_type_list List2 >
+    struct type_list_difference final
+    {
+        using type = typename details_::type_list_difference_impl< List1, List2 >::type;
+    };
+    template < same_as_type_list List1, same_as_type_list List2 >
+    using type_list_difference_t = typename type_list_difference< List1, List2 >::type;
+    template < same_as_type_list List1, same_as_type_list List2 >
+    struct type_list_symmetric_difference final
+    {
+        using type = typename details_::type_list_symmetric_difference_impl< List1, List2 >::type;
+    };
+    template < same_as_type_list List1, same_as_type_list List2 >
+    using type_list_symmetric_difference_t = typename type_list_symmetric_difference< List1, List2 >::type;
+    template < common_type T, std::size_t N >
+    struct make_repeated_type_list final
+    {
+        using type = typename details_::make_repeated_type_list_impl< T, N >::type;
+    };
+    template < common_type T, std::size_t N >
+    using make_repeated_type_list_t = typename make_repeated_type_list< T, N >::type;
+}
