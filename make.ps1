@@ -1,0 +1,56 @@
+param(
+    [Parameter(Mandatory)]
+    [string]$target,
+    [string]$gpg_key = ""
+)
+if (($target -eq "pack_and_sign") -and ($gpg_key -eq "")) {
+    Write-Error -Message "Please provide your gpg key id!"
+    exit 1
+}
+$software_full_name = "Student Computer Lab Toolkit - Legacy Edition"
+$software_short_name = "SCLTK-Legacy"
+$license = "MIT License"
+$copyright = "Copyright (C) 2023 MaxLHy0424."
+$repo_url = "https://github.com/MaxLHy0424/SCLTK-Legacy"
+$git_branch = & git branch --show-current
+$contains_uncommitted_changes = @(git status --porcelain).Count -ne 0
+if (($git_branch -ne "main") -or ($contains_uncommitted_changes -eq $true)) {
+    $git_tag = "<Insider Preview>"
+}
+else {
+    $git_tag = & git describe --tags --abbrev=0
+}
+if ($git_branch.Length -eq 0) {
+    $git_tag = "<Insider Preview>"
+}
+if ($contains_uncommitted_changes -eq $false ) {
+    $git_hash = & git rev-parse HEAD
+}
+else {
+    $git_hash = "<Work In Progress>"
+}
+if (-not (Test-Path "build")) {
+    New-Item -Path "build" -ItemType Directory
+}
+$old_info = "meta/info.h"
+$new_info = "meta/info.new.h"
+@"
+#pragma once
+#define INFO_FULL_NAME  "$software_full_name"
+#define INFO_SHORT_NAME "$software_short_name"
+#define INFO_LICENSE    "$license"
+#define INFO_COPYRIGHT  "$copyright"
+#define INFO_REPO_URL   "$repo_url"
+#define INFO_GIT_BRANCH "$git_branch"
+#define INFO_GIT_TAG    "$git_tag"
+#define INFO_GIT_HASH   "$git_hash"
+"@ | Out-File -FilePath $new_info -Encoding UTF8 -NoNewline -Force
+if (-not (Test-Path $old_info -PathType Leaf) -or -not (Test-Path $new_info -PathType Leaf ) ) {
+    Copy-Item -Path $new_info -Destination $old_info
+}
+elseif ((Get-FileHash $old_info).Hash -ne (Get-FileHash $new_info).Hash ) {
+    Copy-Item -Path $new_info -Destination $old_info
+}
+Remove-Item -Path $new_info
+& make $target -f .\meta\main.mk -j gpg_key=$gpg_key
+exit $LASTEXITCODE
